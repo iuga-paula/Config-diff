@@ -31,6 +31,7 @@ def compareFiles(source_dir, destination_dir):
     differentFilesTxt = open("../results/different_content.txt", "w")
     file_map = {}
 
+
     # Map source files
     for root, dirs, files in os.walk(source_dir):
         for file in files:
@@ -40,7 +41,8 @@ def compareFiles(source_dir, destination_dir):
             file_map[file_path] = calculate_hash(file_path)
 
     # Check differences
-    for file_path, file_hash in file_map.items():
+    sorted_items = sorted(file_map.items())
+    for file_path, file_hash in sorted_items:
         destination_file_path = file_path.replace(source_dir, destination_dir)
         configName = destination_file_path.replace(destination_dir, '')
         configName = configName.lstrip('/')
