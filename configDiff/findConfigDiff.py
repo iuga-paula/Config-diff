@@ -80,9 +80,15 @@ ignored_files = ['copernicus.settings', 'matomo.settings',
 
 def calculate_hash(file_path, remove_uuids):
     hasher = hashlib.sha256()
+    uuid_line = None
+    config_id = None
     try:
         with open(file_path, 'r') as f:
             for line in f:
+                if line.strip().startswith("uuid:") and uuid_line is None:
+                    uuid_line = line.strip()
+                if line.strip().startswith("id:") and config_id is None:
+                    config_id = line.strip()
                 # Skip uuids and config hashes
                 if remove_uuids and (
                         line.strip().startswith("uuid:") or line.strip().startswith("default_config_hash:")
@@ -90,16 +96,18 @@ def calculate_hash(file_path, remove_uuids):
                     continue
                 # Update the hash with the remaining content
                 hasher.update(line.encode('utf-8'))
-        return hasher.hexdigest()
+        config_keys = None if uuid_line is None or config_id is None else f"{uuid_line}\n{config_id}"
+        return hasher.hexdigest(), config_keys
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")
-        return None
+        return None, None
 
 
-def compareFiles(source_dir, destination_dir, remove_uuids):
+def compare_files(source_dir, destination_dir, remove_uuids):
     notFoundTxt = open("../results/not_found_files.txt", "w")
     differentFilesTxt = open("../results/different_content.txt", "w")
     file_map = {}
+    file_diff_uuid_map = {}
 
     # Map source files
     for root, dirs, files in os.walk(source_dir):
@@ -107,7 +115,9 @@ def compareFiles(source_dir, destination_dir, remove_uuids):
             if file.startswith(tuple(ignored_files)):
                 continue
             file_path = os.path.join(root, file)
-            file_map[file_path] = calculate_hash(file_path, remove_uuids)
+            file_hash, file_uuid = calculate_hash(file_path, remove_uuids)
+            file_map[file_path] = file_hash
+            file_diff_uuid_map[file_path] = file_uuid
 
     # Check differences
     sorted_items = sorted(file_map.items())
@@ -119,9 +129,15 @@ def compareFiles(source_dir, destination_dir, remove_uuids):
             notFoundTxt.write(configName + "\n")
             print("Config not found in destination path: " + configName)
             continue
-        if file_hash != calculate_hash(destination_file_path, remove_uuids):
+        current_hash, config_uuid_diff = calculate_hash(destination_file_path, remove_uuids)
+        if file_hash != current_hash:
             differentFilesTxt.write(configName + "\n")
             print("Different config files for the same file: " + configName)
+            if config_uuid_diff is not None and file_diff_uuid_map[file_path] != config_uuid_diff:
+                # get config split diff
+                f = open("../patches/" + configName, "w")
+                f.write(file_diff_uuid_map[file_path])
+                f.close()
 
     notFoundTxt.close()
     differentFilesTxt.close()
@@ -143,7 +159,7 @@ def main():
         print(f"Destination {destination} is not a directory!")
         sys.exit(2)
 
-    compareFiles(source, destination, args.removeUUIDs)
+    compare_files(source, destination, args.removeUUIDs)
 
 
 if __name__ == "__main__":
