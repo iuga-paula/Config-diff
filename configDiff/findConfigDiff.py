@@ -2,6 +2,7 @@ import os
 import hashlib
 import sys
 import argparse
+import shutil
 
 ignored_files = ['copernicus.settings', 'matomo.settings',
                  'system.site',
@@ -103,7 +104,7 @@ def calculate_hash(file_path, remove_uuids):
         return None, None
 
 
-def compare_files(source_dir, destination_dir, remove_uuids):
+def compare_files(source_dir, destination_dir, remove_uuids, show_diff):
     notFoundTxt = open("../results/not_found_files.txt", "w")
     differentFilesTxt = open("../results/different_content.txt", "w")
     file_map = {}
@@ -133,11 +134,11 @@ def compare_files(source_dir, destination_dir, remove_uuids):
         if file_hash != current_hash:
             differentFilesTxt.write(configName + "\n")
             print("Different config files for the same file: " + configName)
+            if not show_diff:
+                continue
+
             if config_uuid_diff is not None and file_diff_uuid_map[file_path] != config_uuid_diff:
-                # get config split diff
-                f = open("../patches/" + configName, "w")
-                f.write(file_diff_uuid_map[file_path])
-                f.close()
+                shutil.copyfile(file_path, f"../patches/{configName}")
 
     notFoundTxt.close()
     differentFilesTxt.close()
@@ -147,7 +148,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source_dir", type=str, help="The source directory to scan.")
     parser.add_argument("config_dir", type=str, help="The configuration directory to scan.")
-    parser.add_argument("--removeUUIDs", action="store_true", help="Remove uuids when looking for config diff")
+    parser.add_argument("--removeUuids", action="store_true", help="Remove uuids when looking for config diff")
+    parser.add_argument("--showDiff", action="store_true", help="Show diff uuids in patches")
     args = parser.parse_args()
 
     source = args.source_dir
@@ -159,7 +161,7 @@ def main():
         print(f"Destination {destination} is not a directory!")
         sys.exit(2)
 
-    compare_files(source, destination, args.removeUUIDs)
+    compare_files(source, destination, args.removeUuids, args.showDiff)
 
 
 if __name__ == "__main__":
